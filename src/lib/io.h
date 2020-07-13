@@ -8,7 +8,7 @@
 Transducer* readBin(FILE* in);
 void writeBin(Transducer* t, FILE* out);
 
-Transducer* readATT(UFILE* in, bool flagsSeparate = false);
-void writeATT(Transducer* t, UFILE* out, bool writeWeights = true);
+Transducer* readATT(UFILE* in);
+void writeATT(Transducer* t, UFILE* out, bool writeHeaders, bool writeWeights);
 
 #endif

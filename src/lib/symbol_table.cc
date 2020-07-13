@@ -33,6 +33,11 @@ SymbolTable::read(FILE* in)
       case CategorySymbol:
         exp.cls = (SymbolClass)Compression::multibyte_read(in);
         break;
+      case FlagSymbol:
+        exp.flag.type = (FlagSymbolType)Compression::multibyte_read(in);
+        exp.flag.sym = string_ref(Compression::multibyte_read(in));
+        exp.flag.val = string_ref(Compression::multibyte_read(in));
+        break;
     }
     symbols[string_ref(sym)] = exp;
   }
@@ -59,6 +64,60 @@ SymbolTable::write(FILE* out)
       case CategorySymbol:
         Compression::multibyte_write(it.second.cls, out);
         break;
+      case FlagSymbol:
+        Compression::multibyte_write(it.second.flag.type, out);
+        Compression::multibyte_write((unsigned int)it.second.flag.sym, out);
+        Compression::multibyte_write((unsigned int)it.second.flag.val, out);
+        break;
     }
   }
+}
+
+void
+SymbolTable::insertUnion(string_ref sym, std::set<string_ref> ls)
+{
+  symbols[sym].type = UnionSymbol;
+  symbols[sym].syms = ls;
+}
+
+void
+SymbolTable::insertNegation(string_ref sym, std::set<string_ref> ls)
+{
+  symbols[sym].type = NegationSymbol;
+  symbols[sym].syms = ls;
+}
+
+void
+SymbolTable::insertIdentity(string_ref sym, size_t tape_idx)
+{
+  symbols[sym].type = IdentitySymbol;
+  symbols[sym].tape = tape_idx;
+}
+
+void
+SymbolTable::insertCategory(string_ref sym, SymbolClass cls)
+{
+  symbols[sym].type = CategorySymbol;
+  symbols[sym].cls = cls;
+}
+
+void
+SymbolTable::insertFlag(string_ref sym, FlagSymbolType type, string_ref flag, string_ref val)
+{
+  symbols[sym].type = FlagSymbol;
+  symbols[sym].flag.type = type;
+  symbols[sym].flag.sym = flag;
+  symbols[sym].flag.val = val;
+}
+
+bool
+SymbolTable::defined(string_ref sym)
+{
+  return symbols.find(sym) != symbols.end();
+}
+
+const SymbolExpansion&
+SymbolTable::lookup(string_ref sym)
+{
+  return symbols[sym];
 }

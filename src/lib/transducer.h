@@ -11,39 +11,51 @@
 #include <map>
 #include <vector>
 
-typedef size_t state_number_t;
+typedef size_t state_t;
+
+enum TapeInfoFlags {
+  SymbolTape = 1,
+  FlagTape   = 2
+};
+
+struct TapeInfo {
+  size_t index;
+  unsigned int flags;
+};
 
 class Transducer {
 private:
-  size_t tapes;
-  size_t flagTapes;
+  size_t tapeCount;
   StringInterner alphabet;
   SymbolTable symbols;
-  std::vector<std::map<state_number_t, std::vector<Transition>>> transitions;
-  std::map<state_number_t, double> finals;
+  std::vector<std::map<state_t, std::vector<Transition>>> transitions;
+  std::map<state_t, double> finals;
+  std::map<UnicodeString, TapeInfo> tapeNames;
 public:
-  Transducer(size_t tapes, size_t flagTapes);
+  Transducer(size_t tapes);
   ~Transducer();
 
   StringInterner& getAlphabet();
   SymbolTable& getSymbols();
-  std::vector<std::map<state_number_t, std::vector<Transition>>>& getTransitions();
-  std::map<state_number_t, double>& getFinals();
-  size_t getTapes();
-  size_t getFlagTapes();
+  std::vector<std::map<state_t, std::vector<Transition>>>& getTransitions();
+  std::map<state_t, double>& getFinals();
+  std::map<UnicodeString, TapeInfo>& getTapeInfo();
+  void setTapeInfo(std::map<UnicodeString, TapeInfo> names);
+  void setTapeInfo(UnicodeString name, TapeInfo info);
+  size_t getTapeCount();
   size_t size();
 
-  state_number_t addState();
+  state_t addState();
   void addStates(size_t n);
-  bool isFinal(state_number_t state);
-  void setFinal(state_number_t state, double weight = 0.000);
-  void setNotFinal(state_number_t state);
+  bool isFinal(state_t state);
+  void setFinal(state_t state, double weight = 0.000);
+  void setNotFinal(state_t state);
 
   // insert trans connecting src to trg
-  void insertTransition(state_number_t src, state_number_t trg, Transition trans);
+  void insertTransition(state_t src, state_t trg, Transition trans);
   // create a new state and connect it to src with trans
   // returns new state
-  state_number_t insertTransition(state_number_t src, Transition trans);
+  state_t insertTransition(state_t src, Transition trans);
   // TODO: shortcuts for adding common types of transitions
   // including checking if the transition already exists
 };

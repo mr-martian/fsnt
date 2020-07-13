@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
   Transducer* t = readBin(input);
 
-  writeATT(t, output, true);
+  writeATT(t, output, true, true);
 
   if(input != stdin) {
     fclose(input);
