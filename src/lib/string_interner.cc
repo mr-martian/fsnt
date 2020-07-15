@@ -66,3 +66,13 @@ StringInterner::write_symbol(UFILE* out, string_ref sym, bool escape)
   }
   u_fprintf(out, "%S", s.getTerminatedBuffer());
 }
+
+std::map<string_ref, string_ref>
+StringInterner::merge(StringInterner& other)
+{
+  std::map<string_ref, string_ref> ret;
+  for(size_t i = 1; i < other.id_to_name.size(); i++) {
+    ret[string_ref(i)] = internName(other.id_to_name[i]);
+  }
+  return ret;
+}

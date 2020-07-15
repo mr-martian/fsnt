@@ -6,6 +6,8 @@
 #include <unicode/uchar.h>
 #include <cstring>
 
+#include <iostream>
+
 Transducer*
 readBin(FILE* in)
 {

@@ -3,5 +3,5 @@
 *.la
 *Makefile
 *Makefile.in
-*/.deps/*
-*/.libs/*
+*.deps*
+*.libs*

@@ -65,6 +65,7 @@ public:
   void insertFlag(string_ref sym, FlagSymbolType type, string_ref flag, string_ref val);
   bool defined(string_ref sym);
   const SymbolExpansion& lookup(string_ref sym);
+  bool isEpsilon(string_ref sym, bool flagsAsEpsilon);
 };
 
 #endif

@@ -121,3 +121,16 @@ SymbolTable::lookup(string_ref sym)
 {
   return symbols[sym];
 }
+
+bool
+SymbolTable::isEpsilon(string_ref sym, bool flagsAsEpsilon)
+{
+  if(sym == string_ref(0)) {
+    return true;
+  } else if(flagsAsEpsilon && symbols.find(sym) != symbols.end() &&
+            symbols[sym].type == FlagSymbol) {
+    return true;
+  } else {
+    return false;
+  }
+}

@@ -43,6 +43,7 @@ public:
   void read(FILE* in);
   void write(FILE* out);
   void write_symbol(UFILE* out, string_ref sym, bool escape);
+  std::map<string_ref, string_ref> merge(StringInterner& other);
 };
 
 #endif
