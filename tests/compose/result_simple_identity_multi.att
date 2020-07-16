@@ -1,0 +1,7 @@
+# tapes:	lex_in	lex_out
+# alt:	lex_in	rule_in
+# alt:	lex_out	rule_out
+0	1	a	a	0.000000
+1	2	n	n	0.000000
+2	3	d	d	0.000000
+3	0.000000

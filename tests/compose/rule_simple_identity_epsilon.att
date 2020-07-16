@@ -1,0 +1,9 @@
+# tapes:	rule_in	rule_out
+0	1	a	@0@
+1	2	@0@	a
+2	2	a	a
+2	2	d	d
+2	2	n	n
+2	2	q	q
+2	2	o	o
+2
