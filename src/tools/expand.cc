@@ -16,6 +16,7 @@ void endProgram(char *name)
   {
     cout << basename(name) << ": print all paths in a transducer" << endl;
     cout << "USAGE: " << basename(name) << " [transducer [output_file]]" << endl;
+    cout << " -c, --cycles         maximum number of times to follow cycles (default 5)" << endl;
   }
   exit(EXIT_FAILURE);
 }
@@ -23,6 +24,7 @@ void endProgram(char *name)
 struct WalkerState {
   state_t state;
   vector<vector<string_ref>> paths;
+  map<state_t, size_t> cycle_count;
 };
 
 void print(WalkerState& w, Transducer* t, UFILE* out)
@@ -38,12 +40,13 @@ void print(WalkerState& w, Transducer* t, UFILE* out)
   u_fprintf(out, "\n");
 }
 
-void expand(Transducer* t, UFILE* out)
+void expand(Transducer* t, UFILE* out, size_t max_cycles)
 {
   stack<WalkerState> todo;
   WalkerState first;
   first.state = 0;
   first.paths.resize(t->getTapeCount());
+  first.cycle_count[0] = 1;
   todo.push(first);
   auto trans = t->getTransitions();
   while(todo.size() > 0) {
@@ -56,6 +59,10 @@ void expand(Transducer* t, UFILE* out)
       for(auto tr : it.second) {
         WalkerState next = cur;
         next.state = it.first;
+        next.cycle_count[it.first] += 1;
+        if(next.cycle_count[it.first] > max_cycles+1) {
+          continue;
+        }
         for(size_t i = 0; i < next.paths.size(); i++) {
           next.paths[i].push_back(tr.symbols[i]);
         }
@@ -67,6 +74,8 @@ void expand(Transducer* t, UFILE* out)
 
 int main(int argc, char *argv[])
 {
+  size_t max_cycles = 5;
+
   #if HAVE_GETOPT_LONG
   int option_index=0;
 #endif
@@ -75,19 +84,24 @@ int main(int argc, char *argv[])
 #if HAVE_GETOPT_LONG
     static struct option long_options[] =
     {
-      {"help",      no_argument, 0, 'h'},
+      {"cycles",    required_argument, 0, 'c'},
+      {"help",      no_argument,       0, 'h'},
       {0, 0, 0, 0}
     };
 
-    int cnt=getopt_long(argc, argv, "h", long_options, &option_index);
+    int cnt=getopt_long(argc, argv, "c:h", long_options, &option_index);
 #else
-    int cnt=getopt(argc, argv, "h");
+    int cnt=getopt(argc, argv, "c:h");
 #endif
     if (cnt==-1)
       break;
 
     switch (cnt)
     {
+      case 'c':
+        max_cycles = stoul(argv[optind-1]);
+        break;
+
       case 'h': // fallthrough
       default:
         endProgram(argv[0]);
@@ -99,7 +113,7 @@ int main(int argc, char *argv[])
 
   Transducer* t = readBin(input);
 
-  expand(t, output);
+  expand(t, output, max_cycles);
 
   if(input != stdin) {
     fclose(input);
