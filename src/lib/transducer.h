@@ -54,10 +54,14 @@ public:
   // insert trans connecting src to trg
   void insertTransition(state_t src, state_t trg, Transition trans);
   // create a new state and connect it to src with trans
+  // if checkExists = true and there is already an equivalent transition
+  // from src, return that transition's destination
   // returns new state
-  state_t insertTransition(state_t src, Transition trans);
+  state_t insertTransition(state_t src, Transition trans, bool checkExists = false);
   // TODO: shortcuts for adding common types of transitions
   // including checking if the transition already exists
+  state_t insertEpsilonTransition(state_t src, bool checkExists = false, double weight = 0.000);
+  void insertEpsilonTransition(state_t src, state_t trg, double weight = 0.000);
 };
 
 #endif

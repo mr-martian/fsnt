@@ -116,9 +116,36 @@ Transducer::insertTransition(state_t src, state_t trg, Transition trans)
 }
 
 state_t
-Transducer::insertTransition(state_t src, Transition trans)
+Transducer::insertTransition(state_t src, Transition trans, bool checkExists)
 {
+  if(checkExists) {
+    for(auto it : transitions[src]) {
+      for(auto tr : it.second) {
+        if(tr == trans) {
+          return it.first;
+        }
+      }
+    }
+  }
   state_t trg = addState();
   insertTransition(src, trg, trans);
   return trg;
+}
+
+state_t
+Transducer::insertEpsilonTransition(state_t src, bool checkExists, double weight)
+{
+  Transition tr;
+  tr.symbols = std::vector<string_ref>(tapeCount, string_ref(0));
+  tr.weight = weight;
+  return insertTransition(src, tr, checkExists);
+}
+
+void
+Transducer::insertEpsilonTransition(state_t src, state_t trg, double weight)
+{
+  Transition tr;
+  tr.symbols = std::vector<string_ref>(tapeCount, string_ref(0));
+  tr.weight = weight;
+  insertTransition(src, trg, tr);
 }

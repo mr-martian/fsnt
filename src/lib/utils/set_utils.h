@@ -2,6 +2,10 @@
  * This file is based on
  * https://github.com/apertium/lexd/blob/master/src/lexdcompiler.h
  */
+
+#ifndef _LIB_SET_UTILS_H_
+#define _LIB_SET_UTILS_H_
+
 #include <set>
 
 template<typename T>
@@ -49,3 +53,5 @@ set<T> subtractset(const set<T> &xs, const set<T> &ys)
     i.erase(y);
   return i;
 }
+
+#endif

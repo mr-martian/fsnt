@@ -59,5 +59,20 @@ class TestCompose(TestBase, unittest.TestCase):
                      result_att='compose/result_simple_identity_multi.att',
                      result_text='compose/result_simple2.txt')
 
+class TestReverse(TestBase, unittest.TestCase):
+    def reverse(self, f, result_att=None, result_text=None):
+        tmp = tempfile.mkdtemp()
+        try:
+            self.run_cmd(['fsnt-txt2fst', f, tmp + '/f.bin'])
+            self.run_cmd(['fsnt-reverse', tmp + '/f.bin', tmp + '/out.bin'])
+            if result_att:
+                self.match_sorted_output_file(['fsnt-fst2txt', tmp + '/out.bin'], output_text=result_att)
+            if result_text:
+                self.match_sorted_output_file(['fsnt-expand', tmp + '/out.bin'], output_text=result_text)
+        finally:
+            shutil.rmtree(tmp)
+    def test_unweighted(self):
+        self.reverse('reverse/simple_unweighted_in.att', result_att='reverse/simple_unweighted_out.att')
+
 if __name__ == '__main__':
     unittest.main(buffer=True, verbosity=2)
