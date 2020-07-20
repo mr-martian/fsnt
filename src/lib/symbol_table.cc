@@ -1,17 +1,63 @@
 #include "symbol_table.h"
 #include "utils/compression.h"
+#include "utils/icu-iter.h"
+
+bool
+operator==(const SymbolExpansion& a, const SymbolExpansion& b)
+{
+  return !(a != b);
+}
+
+bool
+operator!=(const SymbolExpansion& a, const SymbolExpansion& b)
+{
+  return (a.type != b.type ||
+          ((a.type == UnionSymbol || a.type == NegationSymbol) &&
+           a.syms != b.syms) ||
+          (a.type == IdentitySymbol && a.tape != b.tape) ||
+          (a.type == CategorySymbol && a.cls != b.cls) ||
+          (a.type == FlagSymbol &&
+           (a.flag.type != b.flag.type ||
+            a.flag.sym != b.flag.sym ||
+            a.flag.val != b.flag.val)));
+}
 
 SymbolTable::SymbolTable()
 {
+  internName("");
 }
 
 SymbolTable::~SymbolTable()
 {
 }
 
+const UnicodeString&
+SymbolTable::name(string_ref r) const
+{
+  return id_to_name[(unsigned int)r];
+}
+
+string_ref
+SymbolTable::internName(const UnicodeString& name)
+{
+  if(name_to_id.find(name) == name_to_id.end())
+  {
+    name_to_id[name] = string_ref(id_to_name.size());
+    id_to_name.push_back(name);
+  }
+  return name_to_id[name];
+}
+
 void
 SymbolTable::read(FILE* in)
 {
+  id_to_name.clear();
+  name_to_id.clear();
+  internName("");
+  for(unsigned int i = 1, lim = Compression::multibyte_read(in); i < lim; i++) {
+    id_to_name.push_back(Compression::string_read(in));
+    name_to_id[id_to_name.back()] = string_ref(i);
+  }
   symbols.clear();
   for(unsigned int i = 0, lim = Compression::multibyte_read(in); i < lim; i++) {
     unsigned int sym = Compression::multibyte_read(in);
@@ -46,6 +92,10 @@ SymbolTable::read(FILE* in)
 void
 SymbolTable::write(FILE* out)
 {
+  Compression::multibyte_write(id_to_name.size(), out);
+  for(unsigned int i = 1; i < id_to_name.size(); i++) {
+    Compression::string_write(id_to_name[i], out);
+  }
   Compression::multibyte_write(symbols.size(), out);
   for(auto& it : symbols) {
     Compression::multibyte_write((unsigned int)it.first, out);
@@ -74,44 +124,66 @@ SymbolTable::write(FILE* out)
 }
 
 void
-SymbolTable::insertUnion(string_ref sym, std::set<string_ref> ls)
+SymbolTable::write_symbol(UFILE* out, string_ref sym, bool escape)
 {
-  symbols[sym].type = UnionSymbol;
-  symbols[sym].syms = ls;
+  UnicodeString& s = id_to_name[(unsigned int)sym];
+  if(escape) {
+    if(s == " ") {
+      u_fprintf(out, "@_SPACE_@");
+      return;
+    } else if(s == "\t") {
+      u_fprintf(out, "@_TAB_@");
+      return;
+    } else if(s == "") {
+      u_fprintf(out, "@0@");
+      return;
+    }
+  }
+  u_fprintf(out, "%S", s.getTerminatedBuffer());
 }
 
 void
-SymbolTable::insertNegation(string_ref sym, std::set<string_ref> ls)
+SymbolTable::write_symbol(UnicodeString& s, string_ref sym, bool escape)
 {
-  symbols[sym].type = NegationSymbol;
-  symbols[sym].syms = ls;
+  UnicodeString& str = id_to_name[(unsigned int)sym];
+  if(escape) {
+    if(str == " ") {
+      s += "@_SPACE_@";
+      return;
+    } else if(s == "\t") {
+      s += "@_TAB_@";
+      return;
+    } else if(s == "") {
+      s += "@0@";
+      return;
+    }
+  }
+  s += str;
+}
+
+std::map<string_ref, string_ref>
+SymbolTable::merge(SymbolTable& other)
+{
+  std::map<string_ref, string_ref> ret;
+  for(size_t i = 1; i < other.id_to_name.size(); i++) {
+    ret[string_ref(i)] = internName(other.id_to_name[i]);
+  }
+  // TODO: merge symbols
+  return ret;
 }
 
 void
-SymbolTable::insertIdentity(string_ref sym, size_t tape_idx)
+SymbolTable::define(string_ref sym, SymbolExpansion exp, bool check)
 {
-  symbols[sym].type = IdentitySymbol;
-  symbols[sym].tape = tape_idx;
-}
-
-void
-SymbolTable::insertCategory(string_ref sym, SymbolClass cls)
-{
-  symbols[sym].type = CategorySymbol;
-  symbols[sym].cls = cls;
-}
-
-void
-SymbolTable::insertFlag(string_ref sym, FlagSymbolType type, string_ref flag, string_ref val)
-{
-  symbols[sym].type = FlagSymbol;
-  symbols[sym].flag.type = type;
-  symbols[sym].flag.sym = flag;
-  symbols[sym].flag.val = val;
+  if(check && symbols.find(sym) != symbols.end() &&
+     symbols[sym] != exp) {
+    throw std::runtime_error("Multiple conflicting definitions for symbol.");
+  }
+  symbols[sym] = exp;
 }
 
 bool
-SymbolTable::defined(string_ref sym)
+SymbolTable::isDefined(string_ref sym)
 {
   return symbols.find(sym) != symbols.end();
 }
@@ -120,6 +192,53 @@ const SymbolExpansion&
 SymbolTable::lookup(string_ref sym)
 {
   return symbols[sym];
+}
+
+void
+SymbolTable::insertUnion(string_ref sym, std::set<string_ref> ls, bool check)
+{
+  SymbolExpansion exp;
+  exp.type = UnionSymbol;
+  exp.syms = ls;
+  define(sym, exp, check);
+}
+
+void
+SymbolTable::insertNegation(string_ref sym, std::set<string_ref> ls, bool check)
+{
+  SymbolExpansion exp;
+  exp.type = NegationSymbol;
+  exp.syms = ls;
+  define(sym, exp, check);
+}
+
+void
+SymbolTable::insertIdentity(string_ref sym, size_t tape_idx, bool check)
+{
+  SymbolExpansion exp;
+  exp.type = IdentitySymbol;
+  exp.tape = tape_idx;
+  define(sym, exp, check);
+}
+
+void
+SymbolTable::insertCategory(string_ref sym, SymbolClass cls, bool check)
+{
+  SymbolExpansion exp;
+  exp.type = CategorySymbol;
+  exp.cls = cls;
+  define(sym, exp, check);
+}
+
+void
+SymbolTable::insertFlag(string_ref sym, FlagSymbolType type, string_ref flag, string_ref val, bool check)
+{
+  SymbolExpansion exp;
+  exp.type = FlagSymbol;
+  exp.flag.type = type;
+  exp.flag.sym = flag;
+  exp.flag.val = val;
+  define(sym, exp, check);
 }
 
 bool
@@ -133,4 +252,114 @@ SymbolTable::isEpsilon(string_ref sym, bool flagsAsEpsilon)
   } else {
     return false;
   }
+}
+
+string_ref
+SymbolTable::parseSymbol(const UnicodeString& s)
+{
+  if(s == "@0@") {
+    return string_ref(0);
+  }
+  string_ref ret = internName(s);
+  if(s.length() > 4 && s[0] == '@' && s[s.length()-1] == '@') {
+    SymbolExpansion exp;
+    if(s[1] == '_' && s[s.length()-2] == '_') {
+    } else {
+      exp.type = FlagSymbol;
+      switch(s[1]) {
+        case 'C':
+          exp.flag.type = Clear; break;
+        case 'P':
+          exp.flag.type = Positive; break;
+        case 'N':
+          exp.flag.type = Negative; break;
+        case 'R':
+          exp.flag.type = Require; break;
+        case 'D':
+          exp.flag.type = Disallow; break;
+        case 'U':
+          exp.flag.type = Unification; break;
+        default:
+          return ret;
+      }
+      for(auto c = char_iter(s); c != c.end(); c++) {
+        if(c.span().first > 3 && *c == ".") {
+          exp.flag.sym = internName(s.tempSubStringBetween(3, c.span().first));
+          exp.flag.val = internName(s.tempSubStringBetween(c.span().second, s.length() - 1));
+          define(ret, exp, true);
+          return ret;
+        }
+      }
+      exp.flag.sym = internName(s.tempSubStringBetween(3, s.length() - 1));
+      exp.flag.val = string_ref(0);
+      define(ret, exp, true);
+    }
+  }
+  return ret;
+}
+
+string_ref
+SymbolTable::makeUnion(std::set<string_ref> ls)
+{
+  return string_ref(0);
+}
+
+string_ref
+SymbolTable::makeNegation(std::set<string_ref> ls)
+{
+  return string_ref(0);
+}
+
+string_ref
+SymbolTable::makeIdentity(size_t tape_idx)
+{
+  UnicodeString s;
+  char16_t* buf = s.getBuffer(20);
+  u_sprintf(buf, "@_ID_%d_@", tape_idx);
+  s.releaseBuffer();
+  string_ref ret = internName(s);
+  insertIdentity(ret, tape_idx, true);
+  return ret;
+}
+
+string_ref
+SymbolTable::makeCategory(SymbolClass cls)
+{
+  return string_ref(0);
+}
+
+string_ref
+SymbolTable::makeFlag(FlagSymbolType type, string_ref flag, string_ref val)
+{
+  UnicodeString s = "@";
+  switch(type) {
+    case Clear:
+      s += 'C';
+      break;
+    case Positive:
+      s += 'P';
+      break;
+    case Negative:
+      s += 'N';
+      break;
+    case Require:
+      s += 'R';
+      break;
+    case Disallow:
+      s += 'D';
+      break;
+    case Unification:
+      s += 'U';
+      break;
+  }
+  s += '.';
+  write_symbol(s, flag, true);
+  if(val != string_ref(0)) {
+    s += '.';
+    write_symbol(s, val, true);
+  }
+  s += '@';
+  string_ref ret = internName(s);
+  insertFlag(ret, type, flag, val);
+  return ret;
 }

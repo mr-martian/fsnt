@@ -12,16 +12,10 @@ Transducer::~Transducer()
 {
 }
 
-StringInterner&
+SymbolTable&
 Transducer::getAlphabet()
 {
   return alphabet;
-}
-
-SymbolTable&
-Transducer::getSymbols()
-{
-  return symbols;
 }
 
 std::vector<std::map<state_t, std::vector<Transition>>>&

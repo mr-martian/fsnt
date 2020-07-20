@@ -2,7 +2,7 @@
 #define _LIB_TRANSITION_H_
 
 #include <vector>
-#include "string_interner.h"
+#include "symbol_table.h"
 
 struct Transition {
   std::vector<string_ref> symbols;

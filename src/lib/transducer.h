@@ -2,7 +2,6 @@
 #define _LIB_TRANSDUCER_H_
 
 #include "transition.h"
-#include "string_interner.h"
 #include "symbol_table.h"
 
 #include <unicode/unistr.h>
@@ -26,8 +25,7 @@ struct TapeInfo {
 class Transducer {
 private:
   size_t tapeCount;
-  StringInterner alphabet;
-  SymbolTable symbols;
+  SymbolTable alphabet;
   std::vector<std::map<state_t, std::vector<Transition>>> transitions;
   std::map<state_t, double> finals;
   std::map<UnicodeString, TapeInfo> tapeNames;
@@ -35,8 +33,7 @@ public:
   Transducer(size_t tapes);
   ~Transducer();
 
-  StringInterner& getAlphabet();
-  SymbolTable& getSymbols();
+  SymbolTable& getAlphabet();
   std::vector<std::map<state_t, std::vector<Transition>>>& getTransitions();
   std::map<state_t, double>& getFinals();
   std::map<UnicodeString, TapeInfo>& getTapeInfo();

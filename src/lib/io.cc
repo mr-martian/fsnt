@@ -43,7 +43,6 @@ readBin(FILE* in)
   ////////// ALPHABET
 
   t->getAlphabet().read(in);
-  t->getSymbols().read(in);
 
   ////////// FINALS
 
@@ -105,7 +104,6 @@ writeBin(Transducer* t, FILE *out)
   ////////// ALPHABET
 
   t->getAlphabet().write(out);
-  t->getSymbols().write(out);
 
   ////////// FINALS
 
@@ -139,50 +137,6 @@ writeBin(Transducer* t, FILE *out)
       }
     }
   }
-}
-
-bool
-isFlagSymbol(const UnicodeString& sym)
-{
-  return sym.length() > 4 && sym[0] == '@' && sym[sym.length()-1] == '@' &&
-         sym[2] == '.' &&
-         (sym[1] == 'C' || sym[1] == 'P' || sym[1] == 'N' ||
-          sym[1] == 'R' || sym[1] == 'D' || sym[1] == 'U');
-}
-
-void
-parseFlag(const UnicodeString& sym, Transducer* t)
-{
-  StringInterner& alphabet = t->getAlphabet();
-  SymbolTable& table = t->getSymbols();
-  string_ref ret = alphabet.internName(sym);
-  if(table.defined(ret)) return;
-  FlagSymbolType type;
-  string_ref flag, val;
-  if(sym[1] == 'C') {
-    type = Clear;
-  } else if(sym[1] == 'P') {
-    type = Positive;
-  } else if(sym[1] == 'N') {
-    type = Negative;
-  } else if(sym[1] == 'R') {
-    type = Require;
-  } else if(sym[1] == 'D') {
-    type = Disallow;
-  } else if(sym[1] == 'U') {
-    type = Unification;
-  }
-  for(auto c = char_iter(sym); c != c.end(); c++) {
-    if(c.span().first > 3 && *c == ".") {
-      flag = alphabet.internName(sym.tempSubStringBetween(3, c.span().first));
-      val = alphabet.internName(sym.tempSubStringBetween(c.span().second, sym.length() - 1));
-      table.insertFlag(ret, type, flag, val);
-      return;
-    }
-  }
-  flag = alphabet.internName(sym.tempSubStringBetween(3, sym.length() - 1));
-  val = string_ref(0);
-  table.insertFlag(ret, type, flag, val);
 }
 
 Transducer*
@@ -286,9 +240,7 @@ readATT(UFILE* in)
   size_t final_len = (weighted ? 2 : 1);
 
   Transducer* t = new Transducer(tapes);
-  StringInterner& alpha = t->getAlphabet();
-  vector<bool> has_flags = vector<bool>(tapes, false);
-  vector<bool> has_nonflags = vector<bool>(tapes, false);
+  SymbolTable& alpha = t->getAlphabet();
   for(auto line : lines) {
     if(line.size() == transition_len) {
       Transition tr;
@@ -301,17 +253,7 @@ readATT(UFILE* in)
       tr.weight = (weighted ? stoul(line.back()) : 0.000);
 
       for(size_t i = 0; i < tapes; i++) {
-        if(line[i+2] == "@0@") {
-          tr.symbols[i] = string_ref(0);
-        } else {
-          tr.symbols[i] = alpha.internName(line[i+2]);
-          if(isFlagSymbol(line[i+2])) {
-            parseFlag(line[i+2], t);
-            has_flags[i] = true;
-          } else {
-            has_nonflags[i] = true;
-          }
-        }
+        tr.symbols[i] = alpha.parseSymbol(line[i+2]);
       }
       t->insertTransition(src, trg, tr);
     } else if(line.size() == final_len) {
@@ -331,12 +273,6 @@ readATT(UFILE* in)
     TapeInfo info;
     info.index = i;
     info.flags = 0;
-    if(has_nonflags[i]) {
-      info.flags |= SymbolTape;
-    }
-    if(has_flags[i]) {
-      info.flags |= FlagTape;
-    }
     t->setTapeInfo(tapeNames[i], info);
   }
   return t;

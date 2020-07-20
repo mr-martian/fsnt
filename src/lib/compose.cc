@@ -182,8 +182,6 @@ compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, Unico
   std::map<string_ref, string_ref> left_update = t->getAlphabet().merge(a->getAlphabet());
   std::map<string_ref, string_ref> right_update = t->getAlphabet().merge(b->getAlphabet());
 
-  // TODO: merge symbol tables
-
   std::deque<ComposedState> todo_list;
   std::map<state_t, std::map<state_t, std::vector<ComposedState>>> done_list;
 
@@ -248,7 +246,7 @@ compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, Unico
               left = ltrans;
               right = rtrans;
             }
-            if(composeTransition(left, right, &next, &tr, t->getSymbols(),
+            if(composeTransition(left, right, &next, &tr, t->getAlphabet(),
                                  left_update, right_update, placement, flagsAsEpsilon)) {
               if(done_list.find(lstate) != done_list.end() &&
                  done_list[lstate].find(rstate) != done_list[lstate].end())
