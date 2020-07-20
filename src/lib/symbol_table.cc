@@ -48,6 +48,12 @@ SymbolTable::internName(const UnicodeString& name)
   return name_to_id[name];
 }
 
+const std::vector<UnicodeString>&
+SymbolTable::getSymbols()
+{
+  return id_to_name;
+}
+
 void
 SymbolTable::read(FILE* in)
 {
@@ -301,12 +307,14 @@ SymbolTable::parseSymbol(const UnicodeString& s)
 string_ref
 SymbolTable::makeUnion(std::set<string_ref> ls)
 {
+  // TODO
   return string_ref(0);
 }
 
 string_ref
 SymbolTable::makeNegation(std::set<string_ref> ls)
 {
+  // TODO
   return string_ref(0);
 }
 
@@ -325,6 +333,7 @@ SymbolTable::makeIdentity(size_t tape_idx)
 string_ref
 SymbolTable::makeCategory(SymbolClass cls)
 {
+  // TODO
   return string_ref(0);
 }
 
@@ -362,4 +371,10 @@ SymbolTable::makeFlag(FlagSymbolType type, string_ref flag, string_ref val)
   string_ref ret = internName(s);
   insertFlag(ret, type, flag, val);
   return ret;
+}
+
+bool
+SymbolTable::isInterned(const UnicodeString& s)
+{
+  return (name_to_id.find(s) != name_to_id.end());
 }

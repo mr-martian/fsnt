@@ -91,6 +91,8 @@ public:
   const UnicodeString& name(string_ref r) const;
   string_ref internName(const UnicodeString& name);
 
+  const std::vector<UnicodeString>& getSymbols();
+
   void read(FILE* in);
   void write(FILE* out);
   void write_symbol(UFILE* out, string_ref sym, bool escape);
@@ -116,6 +118,8 @@ public:
   string_ref makeFlag(FlagSymbolType type, string_ref flag, string_ref val);
 
   bool isEpsilon(string_ref sym, bool flagsAsEpsilon);
+
+  bool isInterned(const UnicodeString& s);
 };
 
 #endif
