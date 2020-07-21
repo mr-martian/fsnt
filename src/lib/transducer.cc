@@ -1,6 +1,7 @@
 #include "transducer.h"
 #include "utils/compression.h"
 #include <stdexcept>
+#include <unicode/ustream.h>
 
 Transducer::Transducer(size_t tp) :
   tapeCount(tp)

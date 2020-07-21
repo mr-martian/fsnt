@@ -1,6 +1,8 @@
 #include "symbol_table.h"
 #include "utils/compression.h"
 #include "utils/icu-iter.h"
+#include <iostream>
+#include <unicode/ustream.h>
 
 bool
 operator==(const SymbolExpansion& a, const SymbolExpansion& b)
@@ -260,6 +262,21 @@ SymbolTable::isEpsilon(string_ref sym, bool flagsAsEpsilon)
   }
 }
 
+std::set<string_ref>
+split_comma(const UnicodeString& s, SymbolTable* table)
+{
+  std::set<string_ref> ret;
+  int pos = 0;
+  for(auto c = char_iter(s); c != c.end(); c++) {
+    if(*c == ",") {
+      ret.insert(table->internName(s.tempSubStringBetween(pos, c.span().first)));
+      pos = c.span().second;
+    }
+  }
+  ret.insert(table->internName(s.tempSubStringBetween(pos, s.length())));
+  return ret;
+}
+
 string_ref
 SymbolTable::parseSymbol(const UnicodeString& s)
 {
@@ -270,6 +287,13 @@ SymbolTable::parseSymbol(const UnicodeString& s)
   if(s.length() > 4 && s[0] == '@' && s[s.length()-1] == '@') {
     SymbolExpansion exp;
     if(s[1] == '_' && s[s.length()-2] == '_') {
+      if(s.startsWith("@_UNION_{") && s[s.length()-3] == '}') {
+        std::set<string_ref> syms = split_comma(s.tempSubStringBetween(9, s.length()-3), this);
+        exp.type = UnionSymbol;
+        exp.syms = syms;
+        define(ret, exp, true);
+        return ret;
+      }
     } else {
       exp.type = FlagSymbol;
       switch(s[1]) {

@@ -4,29 +4,12 @@
 #include <map>
 
 #include <iostream>
-
-struct BacklogDependency {
-  size_t source_tape;
-  size_t reference_tape;
-  size_t source_index;
-  size_t reference_index;
-};
-
-struct ComposedState {
-  state_t left_state;
-  state_t right_state;
-  state_t out_state;
-  bool clearingBacklog;
-  std::vector<std::deque<string_ref>> left_backlog;
-  std::vector<std::deque<string_ref>> right_backlog;
-  //std::vector<BacklogDependency> deps; // this might not be the right data structure
-};
+#include <unicode/ustream.h>
 
 std::ostream&
 operator<<(std::ostream& s, const ComposedState& next)
 {
-  s << "(" << next.left_state << ", " << next.right_state << ") -> " << next.out_state;
-  s << "{" << next.clearingBacklog << "}\n";
+  s << "(" << next.left_state << ", " << next.right_state << ") -> " << next.out_state << std::endl;
   s << "left_backlog:\n";
   for(auto log : next.left_backlog) {
     s << "[";
@@ -43,6 +26,15 @@ operator<<(std::ostream& s, const ComposedState& next)
     }
     s << "]\n";
   }
+  return s;
+}
+
+std::ostream&
+operator<<(std::ostream& s, const Transition& tr)
+{
+  s << "[";
+  for(auto sym : tr.symbols) { s << "\t" << sym.i; }
+  s << "\t]";
   return s;
 }
 
@@ -107,16 +99,17 @@ stepBacklog(std::deque<string_ref>& backlog, std::map<string_ref, string_ref>& u
 }
 
 bool
-composeTransition(Transition& a, Transition& b, ComposedState* state, Transition* out, SymbolTable& table, std::map<string_ref, string_ref>& left_update, std::map<string_ref, string_ref>& right_update, std::vector<size_t> placement, bool flagsAsEpsilon)
+Composer::composeTransition(Transition& l, Transition& r, ComposedState* state, Transition* out)
 {
-  out->weight = a.weight + b.weight;
-  for(size_t i = 0; i < a.symbols.size(); i++) {
-    out->symbols[i] = stepBacklog(state->left_backlog[i], left_update, a.symbols[i]);
+  SymbolTable& table = t->getAlphabet();
+  out->weight = l.weight + r.weight;
+  for(size_t i = 0; i < l.symbols.size(); i++) {
+    out->symbols[i] = stepBacklog(state->left_backlog[i], left_update, l.symbols[i]);
   }
-  for(size_t i = 0; i < b.symbols.size(); i++) {
-    string_ref rsym = stepBacklog(state->right_backlog[i], right_update, b.symbols[i]);
+  for(size_t i = 0; i < r.symbols.size(); i++) {
+    string_ref rsym = stepBacklog(state->right_backlog[i], right_update, r.symbols[i]);
     size_t loc = placement[i];
-    if(loc >= a.symbols.size()) {  // not composing
+    if(loc >= l.symbols.size()) {  // not composing
       out->symbols[loc] = rsym;
       continue;
     } else if(rsym == out->symbols[loc]) {  // simple equality
@@ -127,21 +120,31 @@ composeTransition(Transition& a, Transition& b, ComposedState* state, Transition
       state->left_backlog[loc].push_front(out->symbols[loc]);
       out->symbols[loc] = rsym; // rsym might be a flag, so keep it
     } else {  // failed to match
+      if(table.isDefined(rsym)) {
+        auto exp = table.lookup(rsym);
+        if(exp.type == UnionSymbol &&
+           exp.syms.find(out->symbols[loc]) != exp.syms.end()) {
+          continue;
+        }
+      }
       return false;
     }
   }
   return true;
 }
 
-Transducer*
-compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, UnicodeString>> tapes, bool flagsAsEpsilon)
+Composer::Composer(Transducer* a_, Transducer* b_, std::vector<std::pair<UnicodeString, UnicodeString>> tapes, bool flagsAsEpsilon_)
 {
+  a = a_;
+  b = b_;
+  flagsAsEpsilon = flagsAsEpsilon_;
+
   if(tapes.size() > a->getTapeCount() || tapes.size() > b->getTapeCount()) {
     throw std::runtime_error("Transducer has fewer tapes than compose instructions.");
   }
-  size_t tapeCount = a->getTapeCount() + b->getTapeCount() - tapes.size();
+  tapeCount = a->getTapeCount() + b->getTapeCount() - tapes.size();
 
-  std::vector<size_t> placement = std::vector<size_t>(b->getTapeCount(), 0);
+  std::vector<int> placement_temp = std::vector<int>(b->getTapeCount(), -1);
   auto left_tapes = a->getTapeInfo();
   auto right_tapes = b->getTapeInfo();
   std::map<UnicodeString, TapeInfo> mergedTapeInfo = left_tapes;
@@ -152,7 +155,7 @@ compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, Unico
     }
     size_t ltape = left_tapes[names.first].index;
     size_t rtape = right_tapes[names.second].index;
-    placement[rtape] = ltape;
+    placement_temp[rtape] = ltape;
     if(mergedTapeInfo.find(names.second) == mergedTapeInfo.end()) {
       TapeInfo info;
       info.index = ltape;
@@ -162,34 +165,100 @@ compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, Unico
     }
   }
   size_t n = a->getTapeCount();
-  for(size_t i = 0; i < placement.size(); i++) {
-    if(placement[i] == 0) {
-      placement[i] = n;
+  for(size_t i = 0; i < placement_temp.size(); i++) {
+    if(placement_temp[i] == -1) {
+      placement_temp[i] = n;
       n++;
     }
+    placement.push_back((size_t)placement_temp[i]);
   }
   for(auto it : right_tapes) {
     if(mergedTapeInfo.find(it.first) == mergedTapeInfo.end()) {
       TapeInfo info;
-      info.index = placement[it.second.index];
+      info.index = (size_t)placement[it.second.index];
       info.flags = it.second.flags;
       mergedTapeInfo[it.first] = info;
     }
   }
 
-  Transducer* t = new Transducer(tapeCount);
+  t = new Transducer(tapeCount);
   t->setTapeInfo(mergedTapeInfo);
-  std::map<string_ref, string_ref> left_update = t->getAlphabet().merge(a->getAlphabet());
-  std::map<string_ref, string_ref> right_update = t->getAlphabet().merge(b->getAlphabet());
+  left_update = t->getAlphabet().merge(a->getAlphabet());
+  right_update = t->getAlphabet().merge(b->getAlphabet());
 
-  std::deque<ComposedState> todo_list;
-  std::map<state_t, std::map<state_t, std::vector<ComposedState>>> done_list;
+  left_epsilon.symbols = std::vector<string_ref>(a->getTapeCount(), string_ref(0));
+  right_epsilon.symbols = std::vector<string_ref>(b->getTapeCount(), string_ref(0));
+}
 
+Composer::~Composer()
+{
+}
+
+void
+Composer::processTransitionPair(ComposedState& state, Transition& left, Transition& right, state_t lstate, state_t rstate)
+{
+  ComposedState next = state;
+  next.left_state = lstate;
+  next.right_state = rstate;
+  Transition tr;
+  tr.symbols.resize(tapeCount);
+  if(composeTransition(left, right, &next, &tr)) {
+    if(done_list.find(lstate) != done_list.end() &&
+       done_list[lstate].find(rstate) != done_list[lstate].end())
+    {
+      for(auto it : done_list[lstate][rstate]) {
+        if(it.left_backlog == next.left_backlog &&
+           it.right_backlog == next.right_backlog)
+        {
+          t->insertTransition(state.out_state, it.out_state, tr);
+          return;
+        }
+      }
+    }
+    next.out_state = t->insertTransition(state.out_state, tr);
+    done_list[lstate][rstate].push_back(next);
+    todo_list.push_back(next);
+  }
+}
+
+void
+Composer::processState(ComposedState& cur)
+{
+  if(a->isFinal(cur.left_state) && b->isFinal(cur.right_state) && backlogEmpty(cur)) {
+    t->setFinal(cur.out_state);
+  }
+  
+}
+
+bool
+Composer::isLeftEpsilon(Transition& tr)
+{
+  for(auto loc : placement) {
+    if(loc < tr.symbols.size() && tr.symbols[loc] != string_ref(0)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool
+Composer::isRightEpsilon(Transition& tr)
+{
+  for(size_t i = 0; i < placement.size(); i++) {
+    if(placement[i] < a->getTapeCount() && tr.symbols[i] != string_ref(0)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+Transducer*
+Composer::compose()
+{
   ComposedState init;
   init.left_state = 0;
   init.right_state = 0;
   init.out_state = 0;
-  init.clearingBacklog = false;
   init.left_backlog.resize(a->getTapeCount());
   init.right_backlog.resize(b->getTapeCount());
   todo_list.push_back(init);
@@ -201,85 +270,52 @@ compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, Unico
   while(todo_list.size() > 0) {
     ComposedState cur = todo_list.front();
     todo_list.pop_front();
+    state_t lstate = cur.left_state;
+    state_t rstate = cur.right_state;
+    bool lempty = backlogEmpty(cur.left_backlog);
+    bool rempty = backlogEmpty(cur.right_backlog);
+
     if(a->isFinal(cur.left_state) && b->isFinal(cur.right_state)) {
-      if(backlogEmpty(cur)) {
+      if(lempty && rempty) {
         t->setFinal(cur.out_state);
-        continue;
-      } else if(!cur.clearingBacklog) {
-        ComposedState end = cur;
-        end.clearingBacklog = true;
-        todo_list.push_back(end);
+      } else {
+        processTransitionPair(cur, left_epsilon, right_epsilon, lstate, rstate);
+      }
+    } else if(!lempty && !rempty &&
+              (left_transitions[cur.left_state].empty() ||
+               right_transitions[cur.right_state].empty())) {
+      processTransitionPair(cur, left_epsilon, right_epsilon, lstate, rstate);
+    }
+    for(auto rvect : right_transitions[cur.right_state]) {
+      rstate = rvect.first;
+      for(auto rtrans : rvect.second) {
+        if(!lempty || isRightEpsilon(rtrans)) {
+          processTransitionPair(cur, left_epsilon, rtrans, lstate, rstate);
+        }
       }
     }
-    std::map<state_t, std::vector<Transition>> lblob = left_transitions[cur.left_state];
-    if(lblob.empty() && cur.clearingBacklog) {
-      lblob[0].resize(1);
-    }
-    for(auto lvect : lblob) {
-      state_t lstate = lvect.first;
+    for(auto lvect : left_transitions[cur.left_state]) {
+      lstate = lvect.first;
       for(auto ltrans : lvect.second) {
-        std::map<state_t, std::vector<Transition>> rblob = right_transitions[cur.right_state];
-        if(rblob.empty() && cur.clearingBacklog) {
-          rblob[0].resize(1);
+        rstate = cur.right_state;
+        if(!rempty || isLeftEpsilon(ltrans)) {
+          processTransitionPair(cur, ltrans, right_epsilon, lstate, rstate);
         }
-        for(auto rvect : rblob) {
-          state_t rstate = rvect.first;
+        for(auto rvect : right_transitions[cur.right_state]) {
+          rstate = rvect.first;
           for(auto rtrans : rvect.second) {
-            ComposedState next = cur;
-            if(!cur.clearingBacklog) {
-              next.left_state = lstate;
-              next.right_state = rstate;
-            }
-            Transition tr;
-            tr.symbols.resize(tapeCount);
-            Transition left, right;
-            if(!cur.clearingBacklog) {
-              left = ltrans;
-              right = rtrans;
-            } else if(backlogEmpty(cur.right_backlog)) {
-              left.symbols.resize(a->getTapeCount());
-              right = rtrans;
-            } else if(backlogEmpty(cur.left_backlog)) {
-              left = ltrans;
-              right.symbols.resize(b->getTapeCount());
-            } else {
-              left = ltrans;
-              right = rtrans;
-            }
-            if(composeTransition(left, right, &next, &tr, t->getAlphabet(),
-                                 left_update, right_update, placement, flagsAsEpsilon)) {
-              if(done_list.find(lstate) != done_list.end() &&
-                 done_list[lstate].find(rstate) != done_list[lstate].end())
-              {
-                bool found = false;
-                for(auto it : done_list[lstate][rstate]) {
-                  if(it.clearingBacklog == next.clearingBacklog &&
-                     it.left_backlog == next.left_backlog &&
-                     it.right_backlog == next.right_backlog)
-                  {
-                    t->insertTransition(cur.out_state, it.out_state, tr);
-                    found = true;
-                    break;
-                  }
-                }
-                if(found) {
-                  continue;
-                }
-              }
-              next.out_state = t->insertTransition(cur.out_state, tr);
-              done_list[lstate][rstate].push_back(next);
-              todo_list.push_back(next);
-            }
-            if(cur.clearingBacklog && backlogEmpty(cur.left_backlog)) {
-              break;
-            }
+            processTransitionPair(cur, ltrans, rtrans, lstate, rstate);
           }
-        }
-        if(cur.clearingBacklog && backlogEmpty(cur.right_backlog)) {
-          break;
         }
       }
     }
   }
   return t;
+}
+
+Transducer*
+compose(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, UnicodeString>> tapes, bool flagsAsEpsilon)
+{
+  Composer comp(a, b, tapes, flagsAsEpsilon);
+  return comp.compose();
 }
