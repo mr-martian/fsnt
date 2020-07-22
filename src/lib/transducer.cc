@@ -13,6 +13,15 @@ Transducer::~Transducer()
 {
 }
 
+Transducer*
+Transducer::emptyCopy()
+{
+  Transducer* ret = new Transducer(tapeCount);
+  ret->alphabet = alphabet;
+  ret->tapeNames = tapeNames;
+  return ret;
+}
+
 SymbolTable&
 Transducer::getAlphabet()
 {

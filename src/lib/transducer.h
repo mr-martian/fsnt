@@ -33,6 +33,8 @@ public:
   Transducer(size_t tapes);
   ~Transducer();
 
+  Transducer* emptyCopy();
+
   SymbolTable& getAlphabet();
   std::vector<std::map<state_t, std::vector<Transition>>>& getTransitions();
   std::map<state_t, double>& getFinals();

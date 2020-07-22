@@ -9,7 +9,7 @@
 #include <set>
 
 template<typename T>
-bool subset(const set<T> &xs, const set<T> &ys)
+bool subset(const std::set<T> &xs, const std::set<T> &ys)
 {
   if(xs.size() > ys.size())
     return false;
@@ -20,7 +20,7 @@ bool subset(const set<T> &xs, const set<T> &ys)
 }
 
 template<typename T>
-bool subset_strict(const set<T> &xs, const set<T> &ys)
+bool subset_strict(const std::set<T> &xs, const std::set<T> &ys)
 {
   if(xs.size() >= ys.size())
     return false;
@@ -28,17 +28,17 @@ bool subset_strict(const set<T> &xs, const set<T> &ys)
 }
 
 template<typename T>
-set<T> unionset(const set<T> &xs, const set<T> &ys)
+std::set<T> unionset(const std::set<T> &xs, const std::set<T> &ys)
 {
-  set<T> u = xs;
+  std::set<T> u = xs;
   u.insert(ys.begin(), ys.end());
   return u;
 }
 
 template<typename T>
-set<T> intersectset(const set<T> &xs, const set<T> &ys)
+std::set<T> intersectset(const std::set<T> &xs, const std::set<T> &ys)
 {
-  set<T> i = xs;
+  std::set<T> i = xs;
   for(auto x: xs)
     if(ys.find(x) == ys.end())
       i.erase(x);
@@ -46,9 +46,9 @@ set<T> intersectset(const set<T> &xs, const set<T> &ys)
 }
 
 template<typename T>
-set<T> subtractset(const set<T> &xs, const set<T> &ys)
+std::set<T> subtractset(const std::set<T> &xs, const std::set<T> &ys)
 {
-  set<T> i = xs;
+  std::set<T> i = xs;
   for(auto y: ys)
     i.erase(y);
   return i;
