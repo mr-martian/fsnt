@@ -41,6 +41,7 @@ private:
 
   bool isLeftEpsilon(Transition& tr);
   bool isRightEpsilon(Transition& tr);
+  bool backlogsOverlap(const ComposedState& s);
 
   bool composeTransition(Transition& a, Transition& b, ComposedState* state, Transition* out);
   void processTransitionPair(ComposedState& state, Transition& left, Transition& right, state_t lstate, state_t rstate);

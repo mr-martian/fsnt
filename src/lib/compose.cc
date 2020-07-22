@@ -252,6 +252,20 @@ Composer::isRightEpsilon(Transition& tr)
   return true;
 }
 
+bool
+Composer::backlogsOverlap(const ComposedState& s)
+{
+  for(size_t i = 0; i < placement.size(); i++) {
+    if(placement[i] < s.left_backlog.size()) {
+      if(s.left_backlog[placement[i]].size() > 0 &&
+         s.right_backlog[i].size() > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 Transducer*
 Composer::compose()
 {
@@ -275,16 +289,11 @@ Composer::compose()
     bool lempty = backlogEmpty(cur.left_backlog);
     bool rempty = backlogEmpty(cur.right_backlog);
 
-    if(a->isFinal(cur.left_state) && b->isFinal(cur.right_state)) {
-      if(lempty && rempty) {
-        t->setFinal(cur.out_state);
-      } else {
-        processTransitionPair(cur, left_epsilon, right_epsilon, lstate, rstate);
-      }
-    } else if(!lempty && !rempty &&
-              (left_transitions[cur.left_state].empty() ||
-               right_transitions[cur.right_state].empty())) {
+    if(backlogsOverlap(cur)) {
       processTransitionPair(cur, left_epsilon, right_epsilon, lstate, rstate);
+    } else if(lempty && rempty &&
+              a->isFinal(cur.left_state) && b->isFinal(cur.right_state)) {
+      t->setFinal(cur.out_state);
     }
     for(auto rvect : right_transitions[cur.right_state]) {
       rstate = rvect.first;
