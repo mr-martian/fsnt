@@ -44,8 +44,7 @@ private:
   bool backlogsOverlap(const ComposedState& s);
 
   bool composeTransition(Transition& a, Transition& b, ComposedState* state, Transition* out);
-  void processTransitionPair(ComposedState& state, Transition& left, Transition& right, state_t lstate, state_t rstate);
-  void processState(ComposedState& cur);
+  bool processTransitionPair(ComposedState& state, Transition& left, Transition& right, state_t lstate, state_t rstate);
 public:
   Composer(Transducer* a, Transducer* b, std::vector<std::pair<UnicodeString, UnicodeString>> tapes, bool flagsAsEpsilon = true);
   ~Composer();

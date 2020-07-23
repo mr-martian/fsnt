@@ -9,22 +9,22 @@
 std::ostream&
 operator<<(std::ostream& s, const ComposedState& next)
 {
-  s << "(" << next.left_state << ", " << next.right_state << ") -> " << next.out_state << std::endl;
-  s << "left_backlog:\n";
+  s << "(" << next.left_state << ", " << next.right_state << ") -> " << next.out_state;// << std::endl;
+  s << " left_backlog: ";
   for(auto log : next.left_backlog) {
     s << "[";
     for(auto it : log) {
       s << it.i << ", ";
     }
-    s << "]\n";
+    s << "] ";
   }
-  s << "right_backlog:\n";
+  s << "right_backlog: ";
   for(auto log : next.right_backlog) {
     s << "[";
     for(auto it : log) {
       s << it.i << ", ";
     }
-    s << "]\n";
+    s << "] ";
   }
   return s;
 }
@@ -194,7 +194,7 @@ Composer::~Composer()
 {
 }
 
-void
+bool
 Composer::processTransitionPair(ComposedState& state, Transition& left, Transition& right, state_t lstate, state_t rstate)
 {
   ComposedState next = state;
@@ -202,7 +202,12 @@ Composer::processTransitionPair(ComposedState& state, Transition& left, Transiti
   next.right_state = rstate;
   Transition tr;
   tr.symbols.resize(tapeCount);
+
+  //std::cerr << "processTransitionPair\n\tnext = " << next << "\n\tleft = " << left << "\n\tright = " << right << std::endl;
+
   if(composeTransition(left, right, &next, &tr)) {
+    //std::cerr << "\tmatched" << std::endl;
+    //std::cerr << "\t-> " << tr << std::endl;
     if(done_list.find(lstate) != done_list.end() &&
        done_list[lstate].find(rstate) != done_list[lstate].end())
     {
@@ -211,23 +216,16 @@ Composer::processTransitionPair(ComposedState& state, Transition& left, Transiti
            it.right_backlog == next.right_backlog)
         {
           t->insertTransition(state.out_state, it.out_state, tr);
-          return;
+          return true;
         }
       }
     }
     next.out_state = t->insertTransition(state.out_state, tr);
     done_list[lstate][rstate].push_back(next);
     todo_list.push_back(next);
+    return true;
   }
-}
-
-void
-Composer::processState(ComposedState& cur)
-{
-  if(a->isFinal(cur.left_state) && b->isFinal(cur.right_state) && backlogEmpty(cur)) {
-    t->setFinal(cur.out_state);
-  }
-  
+  return false;
 }
 
 bool
@@ -289,18 +287,28 @@ Composer::compose()
     bool lempty = backlogEmpty(cur.left_backlog);
     bool rempty = backlogEmpty(cur.right_backlog);
 
+    //std::cerr << std::endl << "cur = " << cur << std::endl;
+
     if(backlogsOverlap(cur)) {
       processTransitionPair(cur, left_epsilon, right_epsilon, lstate, rstate);
+      continue;
+      // if we try to step by non-epsilon transitions when we have overlapping
+      // backogs, we just end up duplicating the effort
     } else if(lempty && rempty &&
               a->isFinal(cur.left_state) && b->isFinal(cur.right_state)) {
       t->setFinal(cur.out_state);
     }
+    std::vector<std::pair<state_t, Transition>> right_trans;
     for(auto rvect : right_transitions[cur.right_state]) {
       rstate = rvect.first;
       for(auto rtrans : rvect.second) {
-        if(!lempty || isRightEpsilon(rtrans)) {
-          processTransitionPair(cur, left_epsilon, rtrans, lstate, rstate);
+        if((!lempty || isRightEpsilon(rtrans)) &&
+           processTransitionPair(cur, left_epsilon, rtrans, lstate, rstate)) {
+          continue;
+          // see below for explanation of stepping by epsilon on the right
+          // this is just the mirror of that
         }
+        right_trans.push_back(std::make_pair(rstate, rtrans));
       }
     }
     for(auto lvect : left_transitions[cur.left_state]) {
@@ -308,13 +316,20 @@ Composer::compose()
       for(auto ltrans : lvect.second) {
         rstate = cur.right_state;
         if(!rempty || isLeftEpsilon(ltrans)) {
-          processTransitionPair(cur, ltrans, right_epsilon, lstate, rstate);
-        }
-        for(auto rvect : right_transitions[cur.right_state]) {
-          rstate = rvect.first;
-          for(auto rtrans : rvect.second) {
-            processTransitionPair(cur, ltrans, rtrans, lstate, rstate);
+          if(processTransitionPair(cur, ltrans, right_epsilon, lstate, rstate)) {
+            continue;
+            // if stepping by epsilon on the right gets us somewhere
+            // then stepping by the next transition will just add to the
+            // backlog
+            // if the left has multiple epsilons in a row on the composing
+            // tape, then this results in symbols on non-composing tapes on
+            // the right being output when the corresponding composing symbol
+            // is output rather than creating duplicate paths for every
+            // possible position
           }
+        }
+        for(auto it : right_trans) {
+          processTransitionPair(cur, ltrans, it.second, lstate, it.first);
         }
       }
     }
