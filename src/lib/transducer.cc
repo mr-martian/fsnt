@@ -153,3 +153,9 @@ Transducer::insertEpsilonTransition(state_t src, state_t trg, double weight)
   tr.weight = weight;
   insertTransition(src, trg, tr);
 }
+
+void
+Transducer::eraseTransitions(state_t src, state_t trg)
+{
+  transitions[src].erase(trg);
+}

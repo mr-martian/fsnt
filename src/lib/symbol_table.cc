@@ -56,6 +56,12 @@ SymbolTable::getSymbols()
   return id_to_name;
 }
 
+const std::map<string_ref, SymbolExpansion>&
+SymbolTable::getDefined()
+{
+  return symbols;
+}
+
 void
 SymbolTable::read(FILE* in)
 {

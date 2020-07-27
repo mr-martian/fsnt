@@ -5,6 +5,7 @@
 #include <unicode/unistr.h>
 #include <unicode/uchar.h>
 #include <cstring>
+#include <stdexcept>
 
 #include <iostream>
 
@@ -172,10 +173,12 @@ readATT(UFILE* in)
     }
     if(pieces.back().length() == 0) {
       pieces.pop_back();
-    } else {
-      lines.push_back(pieces);
     }
-    if(pieces.size() == 1) {
+    lines.push_back(pieces);
+    if(pieces.size() == 0) {
+      lines.pop_back();
+      lastLine = true;
+    } else if(pieces.size() == 1) {
       bool is_separator = true;
       for(auto it = char_iter(pieces[0]); it != it.end(); it++) {
         if(*it != "-") {
@@ -193,9 +196,9 @@ readATT(UFILE* in)
     }
   }
   if(lines.size() == 0) {
-    return NULL;
+    throw std::runtime_error("Empty input.");
   } else if(lines[0].size() < 3) {
-    return NULL; // TODO: how do we want to deal with error handling?
+    throw std::runtime_error("Found transition without tapes");
   }
   bool weighted = false;
   size_t tapes = lines[0].size() - 2;

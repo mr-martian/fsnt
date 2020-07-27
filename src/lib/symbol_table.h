@@ -92,6 +92,7 @@ public:
   string_ref internName(const UnicodeString& name);
 
   const std::vector<UnicodeString>& getSymbols();
+  const std::map<string_ref, SymbolExpansion>& getDefined();
 
   void read(FILE* in);
   void write(FILE* out);

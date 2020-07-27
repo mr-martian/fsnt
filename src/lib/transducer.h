@@ -61,6 +61,8 @@ public:
   // including checking if the transition already exists
   state_t insertEpsilonTransition(state_t src, bool checkExists = false, double weight = 0.000);
   void insertEpsilonTransition(state_t src, state_t trg, double weight = 0.000);
+
+  void eraseTransitions(state_t src, state_t trg);
 };
 
 #endif
